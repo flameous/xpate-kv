@@ -1,16 +1,21 @@
 package kv
 
 import (
+	"bytes"
+	"encoding/json"
+	"io"
+	"log"
+	"os"
 	"sync"
 	"time"
 )
 
-const defaultTTL = 1 * 1000 * 1000 * 1000 // 60 seconds
+const defaultTTL = 60 * 1000 * 1000 * 1000 // 60 seconds
 
 type value struct {
-	val         string
-	createdTime int64
-	TTL         int64
+	Val         string `json:"val"`
+	CreatedTime int64  `json:"created_time"`
+	TTL         int64  `json:"ttl"`
 }
 
 type Cacher interface {
@@ -20,10 +25,25 @@ type Cacher interface {
 }
 
 func NewCacher() Cacher {
-	return &cache{
-		container: make(map[string]value),
+	var (
+		m   map[string]value
+		err error
+	)
+	m, err = getDataFromFile()
+	if err != nil {
+		m = make(map[string]value)
+	}
+	c := &cache{
+		container: m,
 		mu:        &sync.RWMutex{},
 	}
+	go func() {
+		for {
+			time.Sleep(2 * time.Second)
+			go c.dumpToTheFile()
+		}
+	}()
+	return c
 }
 
 type cache struct {
@@ -35,8 +55,8 @@ func (c *cache) Set(k, v string, ttl *int64) {
 	c.mu.Lock()
 
 	innerValue := value{
-		val:         v,
-		createdTime: time.Now().UnixNano(),
+		Val:         v,
+		CreatedTime: time.Now().UnixNano(),
 		TTL:         defaultTTL,
 	}
 	if ttl != nil {
@@ -57,15 +77,57 @@ func (c *cache) Read(key string) (string, bool) {
 	}
 
 	// data was expired
-	if time.Now().UnixNano() > v.createdTime+v.TTL {
+	if time.Now().UnixNano() > v.CreatedTime+v.TTL {
 		c.Delete(key)
 		return "", false
 	}
-	return v.val, true
+	return v.Val, true
 }
 
 func (c *cache) Delete(key string) {
 	c.mu.Lock()
 	delete(c.container, key)
 	c.mu.Unlock()
+}
+
+func getDataFromFile() (map[string]value, error) {
+	file, err := os.Open("./dump")
+	if err != nil {
+		return nil, err
+	}
+	defer file.Close()
+
+	buf := bytes.Buffer{}
+	_, err = io.Copy(&buf, file)
+	if err != nil {
+		return nil, err
+	}
+
+	var m map[string]value
+	err = json.Unmarshal(buf.Bytes(), &m)
+	if err != nil {
+		return nil, err
+	}
+	return m, nil
+}
+
+func (c *cache) dumpToTheFile() {
+	file, err := os.OpenFile("./dump", os.O_CREATE|os.O_WRONLY | os.O_TRUNC, os.ModePerm)
+	if err != nil {
+		log.Println("failed to open file to dump data", err)
+		return
+	}
+	defer file.Close()
+
+	c.mu.Lock()
+	b, err := json.Marshal(c.container)
+	c.mu.Unlock()
+	if err != nil {
+		log.Println("failed to serialize map container", err)
+		return
+	}
+	_, err = file.Write(b)
+	if err != nil {
+		log.Println("failed to write serialized data to file", err)
+	}
 }

@@ -1,9 +1,10 @@
 package main
 
 import (
+	"log"
+
 	"github.com/flameous/xpate-kv/kv"
 	"github.com/flameous/xpate-kv/kv/service"
-	"log"
 )
 
 func init() {

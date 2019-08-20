@@ -4,10 +4,11 @@ import (
 	"bytes"
 	"encoding/json"
 	"errors"
-	"github.com/flameous/xpate-kv/kv"
 	"io"
 	"log"
 	"net"
+
+	"github.com/flameous/xpate-kv/kv"
 )
 
 const (
@@ -26,7 +27,7 @@ type Service struct {
 	cache kv.Cacher
 }
 
-type inputAction struct {
+type InputAction struct {
 	Action string `json:"action"`
 	Key    string `json:"key"`
 
@@ -45,13 +46,12 @@ func (s *Service) Start(port string) error {
 		if err != nil {
 			return err
 		}
-		go s.work(conn)
+		go s.handleConn(conn)
 	}
 }
 
-func (s *Service) work(conn net.Conn) {
+func (s *Service) handleConn(conn net.Conn) {
 	defer conn.Close()
-	log.Println("work")
 
 	// read incoming data
 	buf := bytes.Buffer{}
@@ -62,7 +62,7 @@ func (s *Service) work(conn net.Conn) {
 	}
 
 	// deserialize it to inner struct
-	var ia inputAction
+	var ia InputAction
 	b := buf.Bytes()
 	err = json.Unmarshal(b, &ia)
 	if err != nil {
@@ -94,5 +94,4 @@ func (s *Service) work(conn net.Conn) {
 	if err != nil {
 		log.Printf("action error: %v\n", err)
 	}
-	log.Println(s.cache)
 }

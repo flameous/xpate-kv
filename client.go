@@ -1,14 +1,16 @@
-package service
+package main
 
 import (
 	"encoding/json"
 	"log"
 	"net"
 	"time"
+
+	"github.com/flameous/xpate-kv/kv/service"
 )
 
 // just for testing
-func DoClientStuff() {
+func main() {
 
 	time.Sleep(time.Second)
 
@@ -18,10 +20,10 @@ func DoClientStuff() {
 		return
 	}
 
-	i := inputAction{
-		Action: putAction,
-		Key:    "foo",
-		Value:  "bar",
+	i := service.InputAction{
+		Action: "DELETE",
+		Key:    "test_key",
+		Value:  "test_value",
 	}
 
 	b, _ := json.Marshal(i)
