@@ -39,16 +39,19 @@ func NewCacher() Cacher {
 	}
 	go func() {
 		for {
-			time.Sleep(2 * time.Second)
+			time.Sleep(10 * time.Second)
 			go c.dumpToTheFile()
 		}
 	}()
+
+	go c.clearCacheFromOldData()
 	return c
 }
 
 type cache struct {
 	container map[string]value
 	mu        *sync.RWMutex
+	action    chan struct{}
 }
 
 func (c *cache) Set(k, v string, ttl *int64) {
@@ -90,6 +93,26 @@ func (c *cache) Delete(key string) {
 	c.mu.Unlock()
 }
 
+func (c *cache) clearCacheFromOldData() {
+	for {
+		<-time.Tick(10 * time.Second)
+
+		m := make(map[string]value)
+		tnNano := time.Now().UnixNano()
+		c.mu.RLock()
+		for k, v := range c.container {
+			if v.CreatedTime+v.TTL > tnNano {
+				m[k] = v
+			}
+		}
+		c.mu.RUnlock()
+
+		c.mu.Lock()
+		c.container = m
+		c.mu.Unlock()
+	}
+}
+
 func getDataFromFile() (map[string]value, error) {
 	file, err := os.Open("./dump")
 	if err != nil {
@@ -112,7 +135,7 @@ func getDataFromFile() (map[string]value, error) {
 }
 
 func (c *cache) dumpToTheFile() {
-	file, err := os.OpenFile("./dump", os.O_CREATE|os.O_WRONLY | os.O_TRUNC, os.ModePerm)
+	file, err := os.OpenFile("./dump", os.O_CREATE|os.O_WRONLY|os.O_TRUNC, os.ModePerm)
 	if err != nil {
 		log.Println("failed to open file to dump data", err)
 		return
