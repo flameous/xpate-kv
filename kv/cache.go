@@ -95,7 +95,7 @@ func (c *cache) Delete(key string) {
 
 func (c *cache) clearCacheFromOldData() {
 	for {
-		<-time.Tick(10 * time.Second)
+		time.Sleep(10 * time.Second)
 
 		m := make(map[string]value)
 		tnNano := time.Now().UnixNano()
